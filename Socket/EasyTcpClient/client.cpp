@@ -5,6 +5,45 @@
 #include <WinSock2.h>
 
 
+enum CMD
+{
+	CMD_LOGIN,
+	CMD_LOGOUT,
+	CMD_ERROR
+};
+
+struct DataHeader
+{
+	short dataLength;
+	short cmd;
+};
+
+//struct DataPackage
+//{
+//	int age;
+//	char name[32];
+//};
+struct Login
+{
+	char userName[32];
+	char passWord[32];
+};
+
+struct LoginResult
+{
+	int result;
+};
+
+struct Logout
+{
+	char userName[32];
+};
+
+struct LogoutResult
+{
+	int result;
+};
+
 int main()
 {
 	// 启动 Windows socket 2.x 环境
@@ -50,20 +89,43 @@ int main()
 			std::cout << "接收到退出指令" << std::endl;
 			break;
 		}
-		// 3.2 发送指令
-		send(_sock, cmdBuf, strlen(cmdBuf) + 1, 0);
-
-		// 3.3 recv 接收服务器信息
-		char _recvBuf[128] = {};
-		int nLen = recv(_sock, _recvBuf, 128, 0);
-		if (nLen <= 0)
+		else if (0 == strcmp(cmdBuf, "login"))
 		{
-			std::cout << "未从服务器端接收到任何数据...";
+			Login login = { "ruize", "ruize20" };
+			DataHeader dh = {sizeof(Login), CMD_LOGIN};
+			// 向服务器发送请求命令
+			send(_sock, (const char *) &dh, sizeof(DataHeader), 0);
+			send(_sock, (const char *) &login, sizeof(Login), 0);
+
+			// 从服务器接收数据
+			DataHeader retHeader = {};
+			LoginResult loginRet = {};
+			recv(_sock, (char*) &retHeader, sizeof(DataHeader), 0);
+			recv(_sock, (char*) &loginRet, sizeof(LoginResult), 0);
+
+			std::cout << "登录是否成功:" << loginRet.result << std::endl;
+		}
+		else if (0 == strcmp(cmdBuf, "logout"))
+		{
+			Logout logout = {};
+			DataHeader dh = {sizeof(Logout), CMD_LOGOUT};
+			// 向服务器发送请求命令
+			send(_sock, (char*)&dh, sizeof(DataHeader), 0);
+			send(_sock, (char*)&logout, sizeof(Logout), 0);
+
+			// 从服务器接收数据
+			DataHeader retHeader = {};
+			LogoutResult logoutRet = {};
+			recv(_sock, (char*) &retHeader, sizeof(DataHeader), 0);
+			recv(_sock, (char*) &logoutRet, sizeof(LogoutResult), 0);
+
+			std::cout << "登出是否成功:" << logoutRet.result << std::endl;
 		}
 		else
 		{
-			std::cout << _recvBuf << std::endl;
+			std::cout << "不支持的命令，请重新输入..." << std::endl;
 		}
+		
 	}
 
 	// 4. closesocket 关闭套接字

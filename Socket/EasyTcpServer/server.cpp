@@ -4,6 +4,44 @@
 #include <Windows.h>
 #include <WinSock2.h>
 
+enum CMD
+{
+	CMD_LOGIN,
+	CMD_LOGOUT,
+	CMD_ERROR
+};
+
+struct DataHeader
+{
+	short dataLength;
+	short cmd;
+};
+
+//struct DataPackage
+//{
+//	int age;
+//	char name[32];
+//};
+struct Login
+{
+	char userName[32];
+	char passWord[32];
+};
+
+struct LoginResult
+{
+	int result;
+};
+
+struct Logout
+{
+	char userName[32];
+};
+
+struct LogoutResult
+{
+	int result;
+};
 
 int main()
 {
@@ -49,32 +87,46 @@ int main()
 		std::cout << "ERROR，接受到无效客户端SOCKET..." << std::endl;
 	}
 	std::cout << "新客户端加入：IP = " << inet_ntoa(clientAddr.sin_addr) << std::endl;
-	char _recvBuf[128] = {};
 	while (true)
 	{
-		// 5.1 接收客户端发送的数据
-		int nLen = recv(_cSock, _recvBuf, 128, 0);
+		DataHeader header = {};
+
+		// 5.1 接收客户端发送的数据头
+		int nLen = recv(_cSock, (char*)&header, sizeof(DataHeader), 0);
 		if (nLen <= 0)
 		{
 			std::cout << "客户端已经退出，任务结束" << std::endl;
 			break;
 		}
-		std::cout << "从客户端接收到:" << _recvBuf << std::endl;
-		// 5.2 处理请求
-		if (0 == strcmp(_recvBuf, "getName"))
+		std::cout << "收到命令:" << header.cmd << ", 数据长度:" << header.dataLength << std::endl;
+		switch (header.cmd)
 		{
-			char msgBuf[] = "XiaoQiang";
-			send(_cSock, msgBuf, strlen(msgBuf) + 1, 0);
+		case CMD_LOGIN:
+		{
+			Login login = {};
+			recv(_cSock, (char*)&login, sizeof(Login), 0);
+			// 忽略判断用户密码是否正确
+			LoginResult ret = {1};
+			send(_cSock, (char*)&header, sizeof(DataHeader), 0);
+			send(_cSock, (char*)&ret, sizeof(LoginResult), 0);
 		}
-		else if (0 == strcmp(_recvBuf, "getAge"))
+		break;
+		case CMD_LOGOUT:
 		{
-			char msgBuf[] = "80";
-			send(_cSock, msgBuf, strlen(msgBuf) + 1, 0);
+			Logout logout = {};
+			recv(_cSock, (char*)&logout, sizeof(Logout), 0);
+			LogoutResult ret = {1};
+			send(_cSock, (char*)&header, sizeof(DataHeader), 0);
+			send(_cSock, (char*)&ret, sizeof(LogoutResult), 0);
 		}
-		else
+		break;
+		default:
 		{
-			char msgBuf[] = "未知的命令";
-			send(_cSock, msgBuf, strlen(msgBuf) + 1, 0);
+			header.cmd = CMD_ERROR;
+			header.dataLength = 0;
+			send(_cSock, (char*)&header, sizeof(DataHeader), 0);
+		}
+		break;
 		}
 	}
 
