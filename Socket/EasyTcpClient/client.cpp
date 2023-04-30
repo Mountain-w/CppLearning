@@ -9,7 +9,9 @@ enum CMD
 {
 	CMD_LOGIN,
 	CMD_LOGOUT,
-	CMD_ERROR
+	CMD_ERROR,
+	CMD_LOGIN_RESULT,
+	CMD_LOGOUT_RESULT
 };
 
 struct DataHeader
@@ -23,26 +25,47 @@ struct DataHeader
 //	int age;
 //	char name[32];
 //};
-struct Login
+struct Login : public DataHeader
 {
+	Login()
+	{
+		dataLength = sizeof(Login);
+		cmd = CMD_LOGIN;
+	}
 	char userName[32];
 	char passWord[32];
 };
 
-struct LoginResult
+struct LoginResult : public DataHeader
 {
+	LoginResult()
+	{
+		dataLength = sizeof(LoginResult);
+		cmd = CMD_LOGIN_RESULT;
+	}
 	int result;
 };
 
-struct Logout
+struct Logout : public DataHeader
 {
+	Logout()
+	{
+		dataLength = sizeof(Logout);
+		cmd = CMD_LOGOUT;
+	}
 	char userName[32];
 };
 
-struct LogoutResult
+struct LogoutResult : public DataHeader
 {
+	LogoutResult()
+	{
+		dataLength = sizeof(LogoutResult);
+		cmd = CMD_LOGOUT_RESULT;
+	}
 	int result;
 };
+
 
 int main()
 {
@@ -91,16 +114,14 @@ int main()
 		}
 		else if (0 == strcmp(cmdBuf, "login"))
 		{
-			Login login = { "ruize", "ruize20" };
-			DataHeader dh = {sizeof(Login), CMD_LOGIN};
+			Login login;
+			strcpy_s(login.userName, "Ruize");
+			strcpy_s(login.passWord, "Ruize01.");
 			// 向服务器发送请求命令
-			send(_sock, (const char *) &dh, sizeof(DataHeader), 0);
 			send(_sock, (const char *) &login, sizeof(Login), 0);
 
 			// 从服务器接收数据
-			DataHeader retHeader = {};
 			LoginResult loginRet = {};
-			recv(_sock, (char*) &retHeader, sizeof(DataHeader), 0);
 			recv(_sock, (char*) &loginRet, sizeof(LoginResult), 0);
 
 			std::cout << "登录是否成功:" << loginRet.result << std::endl;
@@ -108,15 +129,12 @@ int main()
 		else if (0 == strcmp(cmdBuf, "logout"))
 		{
 			Logout logout = {};
-			DataHeader dh = {sizeof(Logout), CMD_LOGOUT};
+			strcpy_s(logout.userName, "Ruize");
 			// 向服务器发送请求命令
-			send(_sock, (char*)&dh, sizeof(DataHeader), 0);
 			send(_sock, (char*)&logout, sizeof(Logout), 0);
 
 			// 从服务器接收数据
-			DataHeader retHeader = {};
 			LogoutResult logoutRet = {};
-			recv(_sock, (char*) &retHeader, sizeof(DataHeader), 0);
 			recv(_sock, (char*) &logoutRet, sizeof(LogoutResult), 0);
 
 			std::cout << "登出是否成功:" << logoutRet.result << std::endl;

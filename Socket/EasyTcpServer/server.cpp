@@ -8,7 +8,9 @@ enum CMD
 {
 	CMD_LOGIN,
 	CMD_LOGOUT,
-	CMD_ERROR
+	CMD_ERROR,
+	CMD_LOGIN_RESULT,
+	CMD_LOGOUT_RESULT
 };
 
 struct DataHeader
@@ -22,24 +24,44 @@ struct DataHeader
 //	int age;
 //	char name[32];
 //};
-struct Login
+struct Login: public DataHeader
 {
+	Login()
+	{
+		dataLength = sizeof(Login);
+		cmd = CMD_LOGIN;
+	}
 	char userName[32];
 	char passWord[32];
 };
 
-struct LoginResult
+struct LoginResult: public DataHeader
 {
+	LoginResult()
+	{
+		dataLength = sizeof(LoginResult);
+		cmd = CMD_LOGIN_RESULT;
+	}
 	int result;
 };
 
-struct Logout
+struct Logout: public DataHeader
 {
+	Logout()
+	{
+		dataLength = sizeof(Logout);
+		cmd = CMD_LOGOUT;
+	}
 	char userName[32];
 };
 
-struct LogoutResult
+struct LogoutResult: public DataHeader
 {
+	LogoutResult()
+	{
+		dataLength = sizeof(LogoutResult);
+		cmd = CMD_LOGOUT_RESULT;
+	}
 	int result;
 };
 
@@ -91,7 +113,7 @@ int main()
 	{
 		DataHeader header = {};
 
-		// 5.1 接收客户端发送的数据头
+		// 5.1 接收客户端发送的数据
 		int nLen = recv(_cSock, (char*)&header, sizeof(DataHeader), 0);
 		if (nLen <= 0)
 		{
@@ -104,19 +126,19 @@ int main()
 		case CMD_LOGIN:
 		{
 			Login login = {};
-			recv(_cSock, (char*)&login, sizeof(Login), 0);
+			recv(_cSock, (char*)&login + sizeof(DataHeader), login.dataLength - sizeof(DataHeader), 0);
 			// 忽略判断用户密码是否正确
-			LoginResult ret = {1};
-			send(_cSock, (char*)&header, sizeof(DataHeader), 0);
+			LoginResult ret;
+			ret.result = 1;
 			send(_cSock, (char*)&ret, sizeof(LoginResult), 0);
 		}
 		break;
 		case CMD_LOGOUT:
 		{
 			Logout logout = {};
-			recv(_cSock, (char*)&logout, sizeof(Logout), 0);
-			LogoutResult ret = {1};
-			send(_cSock, (char*)&header, sizeof(DataHeader), 0);
+			recv(_cSock, (char*)&logout + sizeof(DataHeader), sizeof(Logout) - sizeof(DataHeader), 0);
+			LogoutResult ret = {};
+			ret.result = 1;
 			send(_cSock, (char*)&ret, sizeof(LogoutResult), 0);
 		}
 		break;
