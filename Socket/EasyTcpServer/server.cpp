@@ -3,6 +3,7 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS 0
 #include <Windows.h>
 #include <WinSock2.h>
+#include <vector>
 
 enum CMD
 {
@@ -65,6 +66,49 @@ struct LogoutResult: public DataHeader
 	int result;
 };
 
+std::vector<SOCKET> g_clients;
+int processor(SOCKET _cSock)
+{
+	DataHeader header = {};
+
+	// 5.1 接收客户端发送的数据
+	int nLen = recv(_cSock, (char*)&header, sizeof(DataHeader), 0);
+	if (nLen <= 0)
+	{
+		std::cout << "客户端已经退出，任务结束" << std::endl;
+		return -1;
+	}
+	std::cout << "收到命令:" << header.cmd << ", 数据长度:" << header.dataLength << std::endl;
+	switch (header.cmd)
+	{
+	case CMD_LOGIN:
+	{
+		Login login = {};
+		recv(_cSock, (char*)&login + sizeof(DataHeader), login.dataLength - sizeof(DataHeader), 0);
+		// 忽略判断用户密码是否正确
+		LoginResult ret;
+		ret.result = 1;
+		send(_cSock, (char*)&ret, sizeof(LoginResult), 0);
+	}
+	break;
+	case CMD_LOGOUT:
+	{
+		Logout logout = {};
+		recv(_cSock, (char*)&logout + sizeof(DataHeader), sizeof(Logout) - sizeof(DataHeader), 0);
+		LogoutResult ret = {};
+		ret.result = 1;
+		send(_cSock, (char*)&ret, sizeof(LogoutResult), 0);
+	}
+	break;
+	default:
+	{
+		header.cmd = CMD_ERROR;
+		header.dataLength = 0;
+		send(_cSock, (char*)&header, sizeof(DataHeader), 0);
+	}
+	break;
+	}
+}
 int main()
 {
 	// 启动 Windows socket 2.x 环境
@@ -98,59 +142,67 @@ int main()
 	{
 		std::cout << "SUCCESS，监听用于接受客户端连接的网络端口成功..." << std::endl;
 	}
-	
-	// 4. accept 等待客户端连接
-	sockaddr_in clientAddr = {};
-	int nAddrLen = sizeof(sockaddr_in);
-	SOCKET _cSock = INVALID_SOCKET;
-	_cSock = accept(_sock, (sockaddr*)&clientAddr, &nAddrLen);
-	if (INVALID_SOCKET == _cSock)
-	{
-		std::cout << "ERROR，接受到无效客户端SOCKET..." << std::endl;
-	}
-	std::cout << "新客户端加入：IP = " << inet_ntoa(clientAddr.sin_addr) << std::endl;
+
 	while (true)
 	{
-		DataHeader header = {};
+		// 伯克利 socket
+		fd_set fdRead;
+		fd_set fdWrite;
+		fd_set fdExp;
 
-		// 5.1 接收客户端发送的数据
-		int nLen = recv(_cSock, (char*)&header, sizeof(DataHeader), 0);
-		if (nLen <= 0)
+		FD_ZERO(&fdRead);
+		FD_ZERO(&fdWrite);
+		FD_ZERO(&fdExp);
+
+		FD_SET(_sock, &fdRead);
+		FD_SET(_sock, &fdWrite);
+		FD_SET(_sock, &fdExp);
+
+		for (int n = (int)g_clients.size() - 1; n >= 0; n--)
 		{
-			std::cout << "客户端已经退出，任务结束" << std::endl;
+			FD_SET(g_clients[n], &fdRead);
+		}
+		// ndfs 是一个整数值，是指fd_set集合中所有描述符（socket）的范围，而不是数量
+		// 即所有文件描述符最大值加一，在 Windows 中这个参数无所谓
+		timeval time = {0, 0};
+		int ret = select((int)_sock + 1, &fdRead, &fdWrite, &fdExp, &time);
+		if (ret < 0)
+		{
+			std::cout << "select 任务结束" << std::endl;
 			break;
 		}
-		std::cout << "收到命令:" << header.cmd << ", 数据长度:" << header.dataLength << std::endl;
-		switch (header.cmd)
+		if (FD_ISSET(_sock, &fdRead))
 		{
-		case CMD_LOGIN:
-		{
-			Login login = {};
-			recv(_cSock, (char*)&login + sizeof(DataHeader), login.dataLength - sizeof(DataHeader), 0);
-			// 忽略判断用户密码是否正确
-			LoginResult ret;
-			ret.result = 1;
-			send(_cSock, (char*)&ret, sizeof(LoginResult), 0);
+			FD_CLR(_sock, &fdRead);
+			sockaddr_in clientAddr = {};
+			int nAddrLen = sizeof(sockaddr_in);
+			SOCKET _cSock = INVALID_SOCKET;
+			_cSock = accept(_sock, (sockaddr*)&clientAddr, &nAddrLen);
+			if (INVALID_SOCKET == _cSock)
+			{
+				std::cout << "ERROR，接受到无效客户端SOCKET..." << std::endl;
+			}
+			g_clients.push_back(_cSock);
+			std::cout << "新客户端加入：IP = " << inet_ntoa(clientAddr.sin_addr) << std::endl;
 		}
-		break;
-		case CMD_LOGOUT:
+		for (size_t n = 0; n < fdRead.fd_count; n++)
 		{
-			Logout logout = {};
-			recv(_cSock, (char*)&logout + sizeof(DataHeader), sizeof(Logout) - sizeof(DataHeader), 0);
-			LogoutResult ret = {};
-			ret.result = 1;
-			send(_cSock, (char*)&ret, sizeof(LogoutResult), 0);
-		}
-		break;
-		default:
-		{
-			header.cmd = CMD_ERROR;
-			header.dataLength = 0;
-			send(_cSock, (char*)&header, sizeof(DataHeader), 0);
-		}
-		break;
+			if (-1 == processor(fdRead.fd_array[n]))
+			{
+				auto iter = find(g_clients.begin(), g_clients.end(), fdRead.fd_array[n]);
+				if (iter != g_clients.end())
+				{
+					g_clients.erase(iter);
+				}
+			}
 		}
 	}
+
+	for (int n = (int)g_clients.size() - 1; n >= 0; n--)
+	{
+		closesocket(g_clients[n]);
+	}
+
 
 	// 6. closesocket 关闭套接字
 	closesocket(_sock);
