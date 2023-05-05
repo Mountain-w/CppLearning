@@ -11,7 +11,8 @@ enum CMD
 	CMD_LOGOUT,
 	CMD_ERROR,
 	CMD_LOGIN_RESULT,
-	CMD_LOGOUT_RESULT
+	CMD_LOGOUT_RESULT,
+	CMD_NEW_USER_JOIN
 };
 
 struct DataHeader
@@ -64,6 +65,17 @@ struct LogoutResult: public DataHeader
 		cmd = CMD_LOGOUT_RESULT;
 	}
 	int result;
+};
+
+struct NewUserJoin : public DataHeader
+{
+	NewUserJoin()
+	{
+		dataLength = sizeof(NewUserJoin);
+		cmd = CMD_NEW_USER_JOIN;
+		sock = 0;
+	}
+	int sock;
 };
 
 std::vector<SOCKET> g_clients;
@@ -181,6 +193,12 @@ int main()
 			if (INVALID_SOCKET == _cSock)
 			{
 				std::cout << "ERROR，接受到无效客户端SOCKET..." << std::endl;
+			}
+			for (int n = (int)g_clients.size() - 1; n >= 0; n--)
+			{
+				NewUserJoin userJoin;
+				userJoin.sock = (int)_cSock;
+				send(g_clients[n], (const char*)&userJoin, userJoin.dataLength, 0);
 			}
 			g_clients.push_back(_cSock);
 			std::cout << "新客户端加入：IP = " << inet_ntoa(clientAddr.sin_addr) << std::endl;

@@ -11,7 +11,8 @@ enum CMD
 	CMD_LOGOUT,
 	CMD_ERROR,
 	CMD_LOGIN_RESULT,
-	CMD_LOGOUT_RESULT
+	CMD_LOGOUT_RESULT,
+	CMD_NEW_USER_JOIN
 };
 
 struct DataHeader
@@ -66,6 +67,53 @@ struct LogoutResult : public DataHeader
 	int result;
 };
 
+struct NewUserJoin : public DataHeader
+{
+	NewUserJoin()
+	{
+		dataLength = sizeof(NewUserJoin);
+		cmd = CMD_NEW_USER_JOIN;
+		sock = 0;
+	}
+	int sock;
+};
+
+int processor(SOCKET _cSock)
+{
+	DataHeader header = {};
+
+	// 5.1 接收客户端发送的数据
+	int nLen = recv(_cSock, (char*)&header, sizeof(DataHeader), 0);
+	if (nLen <= 0)
+	{
+		std::cout << "与服务器断开连接，任务结束" << std::endl;
+		return -1;
+	}
+	switch (header.cmd)
+	{
+	case CMD_NEW_USER_JOIN:
+	{
+		NewUserJoin newUserJoin = {};
+		recv(_cSock, (char*)&newUserJoin + sizeof(DataHeader), newUserJoin.dataLength - sizeof(DataHeader), 0);
+		std::cout << "新客户端<" << newUserJoin.sock << "> 加入" << std::endl;
+	}
+	break;
+	case CMD_LOGIN_RESULT:
+	{
+		LoginResult loginResult = {};
+		recv(_cSock, (char*)&loginResult + sizeof(DataHeader), loginResult.dataLength - sizeof(DataHeader), 0);
+		std::cout << "登录状态：" << loginResult.result << std::endl;
+	}
+	break;
+	case CMD_LOGOUT_RESULT:
+	{
+		LogoutResult logoutResult = {};
+		recv(_cSock, (char*)&logoutResult + sizeof(DataHeader), logoutResult.dataLength - sizeof(DataHeader), 0);
+		std::cout << "登出状态：" << logoutResult.result << std::endl;
+	}
+	break;
+	}
+}
 
 int main()
 {
@@ -103,47 +151,25 @@ int main()
 	// 3. 与服务器通信
 	while (true)
 	{	
-		// 3.1 输入指令
-		char cmdBuf[128] = {};
-		std::cout << ">>";
-		std::cin >> cmdBuf;
-		if (0 == strcmp(cmdBuf, "exit"))
+		fd_set fdReads;
+		FD_ZERO(&fdReads);
+		FD_SET(_sock, &fdReads);
+		timeval time = { 0, 0 };
+		int ret = select(0, &fdReads, nullptr, nullptr, &time);
+		if (ret < 0)
 		{
-			std::cout << "接收到退出指令" << std::endl;
+			std::cout << "select 任务结束" << std::endl;
 			break;
 		}
-		else if (0 == strcmp(cmdBuf, "login"))
+		if (FD_ISSET(_sock, &fdReads))
 		{
-			Login login;
-			strcpy_s(login.userName, "Ruize");
-			strcpy_s(login.passWord, "Ruize01.");
-			// 向服务器发送请求命令
-			send(_sock, (const char *) &login, sizeof(Login), 0);
-
-			// 从服务器接收数据
-			LoginResult loginRet = {};
-			recv(_sock, (char*) &loginRet, sizeof(LoginResult), 0);
-
-			std::cout << "登录是否成功:" << loginRet.result << std::endl;
+			FD_CLR(_sock, &fdReads);
+			if (-1 == processor(_sock))
+			{
+				std::cout << "select 任务结束" << std::endl;
+				break;
+			}
 		}
-		else if (0 == strcmp(cmdBuf, "logout"))
-		{
-			Logout logout = {};
-			strcpy_s(logout.userName, "Ruize");
-			// 向服务器发送请求命令
-			send(_sock, (char*)&logout, sizeof(Logout), 0);
-
-			// 从服务器接收数据
-			LogoutResult logoutRet = {};
-			recv(_sock, (char*) &logoutRet, sizeof(LogoutResult), 0);
-
-			std::cout << "登出是否成功:" << logoutRet.result << std::endl;
-		}
-		else
-		{
-			std::cout << "不支持的命令，请重新输入..." << std::endl;
-		}
-		
 	}
 
 	// 4. closesocket 关闭套接字
