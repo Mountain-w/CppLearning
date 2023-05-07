@@ -1,9 +1,20 @@
 #include <iostream>
 #include <thread>
-#define WIN32_LEAN_AND_MEAN
-#define _WINSOCK_DEPRECATED_NO_WARNINGS 0
-#include <Windows.h>
-#include <WinSock2.h>
+// 跨平台支持
+#ifdef _WIN32
+    #define WIN32_LEAN_AND_MEAN
+    #define _WINSOCK_DEPRECATED_NO_WARNINGS 0
+    #include <Windows.h>
+    #include <WinSock2.h>
+    #define strcpy strcpy_s
+#else
+    #include <unistd.h> //uni std
+    #include <arpa/inet.h>
+    #include <string.h>
+    #define SOCKET int
+    #define INVALID_SOCKET (SOCKET) (~0)
+    #define SOCKET_ERROR (-1)
+#endif
 
 
 enum CMD
@@ -133,14 +144,14 @@ void cmdThread(SOCKET _sock)
 		else if (0 == strcmp(cmdBuf, "login"))
 		{
 			Login login;
-			strcpy_s(login.userName, "ruize");
-			strcpy_s(login.passWord, "ruize01.");
+			strcpy(login.userName, "ruize");
+			strcpy(login.passWord, "ruize01.");
 			send(_sock, (const char*)&login, login.dataLength, 0);
 		}
 		else if (0 == strcmp(cmdBuf, "logout"))
 		{
 			Logout logout;
-			strcpy_s(logout.userName, "ruize");
+			strcpy(logout.userName, "ruize");
 			send(_sock, (const char*)&logout, logout.dataLength, 0);
 		}
 		else {
@@ -151,10 +162,12 @@ void cmdThread(SOCKET _sock)
 
 int main()
 {
+#ifdef _WIN32
 	// 启动 Windows socket 2.x 环境
 	WORD ver = MAKEWORD(2, 2);
 	WSADATA dat;
 	WSAStartup(ver, &dat);
+#endif
 	// -----------------------------
 	// 1. 建立一个socket
 	SOCKET _sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -171,7 +184,11 @@ int main()
 	sockaddr_in _sin = {};
 	_sin.sin_family = AF_INET;
 	_sin.sin_port = htons(4567);
-	_sin.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
+#ifdef _WIN32
+	_sin.sin_addr.S_un.S_addr = inet_addr("192.168.88.109");
+#else
+	_sin.sin_addr.s_addr = inet_addr("192.168.88.109");
+#endif
 	int ret = connect(_sock, (sockaddr*)&_sin, sizeof(sockaddr_in));
 	if (SOCKET_ERROR == ret)
 	{
@@ -207,11 +224,13 @@ int main()
 			}
 		}
 	}
-
+#ifdef _WIN32
 	// 4. closesocket 关闭套接字
 	closesocket(_sock);
-
 	// -----------------------------
 	// 清除Windows socket 环境
 	WSACleanup();
+#else
+	close(_sock);
+#endif
 }

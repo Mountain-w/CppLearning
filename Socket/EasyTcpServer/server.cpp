@@ -135,7 +135,7 @@ int main()
 	sockaddr_in _sin = {};
 	_sin.sin_family = AF_INET;
 	_sin.sin_port = htons(4567); // host to net unsigned short
-	_sin.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
+	_sin.sin_addr.S_un.S_addr = inet_addr("192.168.88.109");
 	if (SOCKET_ERROR == bind(_sock, (sockaddr*)&_sin, sizeof(_sin)))
 	{
 		std::cout << "ERROR，绑定用于接受客户端连接的网络端口失败..." << std::endl;
