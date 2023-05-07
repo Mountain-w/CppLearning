@@ -1,4 +1,5 @@
 #include <iostream>
+#include <thread>
 #define WIN32_LEAN_AND_MEAN
 #define _WINSOCK_DEPRECATED_NO_WARNINGS 0
 #include <Windows.h>
@@ -115,6 +116,39 @@ int processor(SOCKET _cSock)
 	}
 }
 
+bool g_bRunt = true;
+void cmdThread(SOCKET _sock)
+{
+	while (true)
+	{
+		char cmdBuf[256] = {};
+		std::cout << ">>>";
+		std::cin >> cmdBuf;
+		if (0 == strcmp(cmdBuf, "exit"))
+		{
+			std::cout << "退出cmd线程" << std::endl;
+			g_bRunt = false;
+			break;
+		}
+		else if (0 == strcmp(cmdBuf, "login"))
+		{
+			Login login;
+			strcpy_s(login.userName, "ruize");
+			strcpy_s(login.passWord, "ruize01.");
+			send(_sock, (const char*)&login, login.dataLength, 0);
+		}
+		else if (0 == strcmp(cmdBuf, "logout"))
+		{
+			Logout logout;
+			strcpy_s(logout.userName, "ruize");
+			send(_sock, (const char*)&logout, logout.dataLength, 0);
+		}
+		else {
+			std::cout << "不支持的命令" << std::endl;
+		}
+	}
+}
+
 int main()
 {
 	// 启动 Windows socket 2.x 环境
@@ -147,9 +181,11 @@ int main()
 	{
 		std::cout << "SUCCESS，连接服务器成功..." << std::endl;
 	}
-
+	// 启动线程
+	std::thread t1(cmdThread, _sock);
+	t1.detach();
 	// 3. 与服务器通信
-	while (true)
+	while (g_bRunt)
 	{	
 		fd_set fdReads;
 		FD_ZERO(&fdReads);

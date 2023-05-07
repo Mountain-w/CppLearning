@@ -90,7 +90,7 @@ int processor(SOCKET _cSock)
 		std::cout << "客户端已经退出，任务结束" << std::endl;
 		return -1;
 	}
-	std::cout << "收到命令:" << header.cmd << ", 数据长度:" << header.dataLength << std::endl;
+	std::cout << "从客户端<" << _cSock << ">收到命令:" << header.cmd << ", 数据长度:" << header.dataLength << std::endl;
 	switch (header.cmd)
 	{
 	case CMD_LOGIN:
@@ -194,14 +194,17 @@ int main()
 			{
 				std::cout << "ERROR，接受到无效客户端SOCKET..." << std::endl;
 			}
-			for (int n = (int)g_clients.size() - 1; n >= 0; n--)
+			else
 			{
-				NewUserJoin userJoin;
-				userJoin.sock = (int)_cSock;
-				send(g_clients[n], (const char*)&userJoin, userJoin.dataLength, 0);
+				for (int n = (int)g_clients.size() - 1; n >= 0; n--)
+				{
+					NewUserJoin userJoin;
+					userJoin.sock = (int)_cSock;
+					send(g_clients[n], (const char*)&userJoin, userJoin.dataLength, 0);
+				}
+				g_clients.push_back(_cSock);
+				std::cout << "新客户端加入：IP = " << inet_ntoa(clientAddr.sin_addr) << std::endl;
 			}
-			g_clients.push_back(_cSock);
-			std::cout << "新客户端加入：IP = " << inet_ntoa(clientAddr.sin_addr) << std::endl;
 		}
 		for (size_t n = 0; n < fdRead.fd_count; n++)
 		{
